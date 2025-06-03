@@ -42,8 +42,7 @@ export const useChatStore = create((set, get) => ({
         try {
           const authUser = useAuthStore.getState().authUser;
           const recipientPrivateKey = useAuthStore.getState().getUserPrivateKey();
-          
-          // Determine if current user is sender or receiver
+            // Determine if current user is sender or receiver
           const isCurrentUserSender = message.senderId === authUser._id;
           
           // Get the other user's public key
@@ -51,24 +50,34 @@ export const useChatStore = create((set, get) => ({
           const otherUserPublicKey = await get().getUserPublicKey(otherUserId);
           
           if (recipientPrivateKey && otherUserPublicKey && message.nonce) {
-            const userPrivateKey = recipientPrivateKey;
-            const otherPartyPublicKey = otherUserPublicKey;
+            // When current user is the sender:
+            // - We need receiver's public key and our private key
+            // When current user is the receiver:
+            // - We need sender's public key and our private key
+            let publicKeyForDecryption, privateKeyForDecryption;
             
-            // If current user is sender, swap the keys for decryption
-            const senderPublicKey = isCurrentUserSender ? authUser.publicKey : otherUserPublicKey;
-            const recipientPrivKey = isCurrentUserSender ? recipientPrivateKey : recipientPrivateKey;
-            
-            // Decrypt text if present
+            if (isCurrentUserSender) {
+              // We're the sender, so we use the recipient's public key and our private key
+              publicKeyForDecryption = otherUserPublicKey; // recipient's public key
+              privateKeyForDecryption = recipientPrivateKey; // our private key
+            } else {
+              // We're the recipient, so we use the sender's public key and our private key
+              publicKeyForDecryption = otherUserPublicKey; // sender's public key
+              privateKeyForDecryption = recipientPrivateKey; // our private key
+            }
+              // Decrypt text if present
             if (message.encryptedText) {
               const decryptedText = decryptMessage(
                 message.encryptedText,
                 message.nonce,
-                senderPublicKey,
-                recipientPrivKey
+                publicKeyForDecryption,
+                privateKeyForDecryption
               );
               
               if (decryptedText) {
                 message.text = decryptedText;
+              } else {
+                message.text = "[Encrypted message - unable to decrypt]";
               }
             }
             
@@ -77,12 +86,13 @@ export const useChatStore = create((set, get) => ({
               const decryptedImage = decryptMessage(
                 message.encryptedImage,
                 message.nonce,
-                senderPublicKey,
-                recipientPrivKey
+                publicKeyForDecryption,
+                privateKeyForDecryption
               );
-              
-              if (decryptedImage) {
+                if (decryptedImage) {
                 message.image = decryptedImage;
+              } else if (message.encryptedImage) {
+                message.image = "[Encrypted image - unable to decrypt]";
               }
             }
           }
@@ -142,14 +152,26 @@ export const useChatStore = create((set, get) => ({
         );
         encryptedData.encryptedImage = encryptedImage;
       }
-      
-      // Send the encrypted message to the server
+        // Send the encrypted message to the server
       const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, {
         ...encryptedData,
         nonce,
       });
       
-      set({ messages: [...messages, res.data] });
+      // Create a version of the message that's already decrypted for the sender's view
+      const messageForState = { ...res.data };
+      
+      // Since we're the sender, we already know the original message content
+      if (messageForState.isEncrypted) {
+        if (messageData.text) {
+          messageForState.text = messageData.text;
+        }
+        if (messageData.image) {
+          messageForState.image = messageData.image;
+        }
+      }
+      
+      set({ messages: [...messages, messageForState] });
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to send message");
       console.error("Error sending encrypted message:", error);
@@ -164,28 +186,39 @@ export const useChatStore = create((set, get) => ({
     socket.on("newMessage", async (newMessage) => {
       const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
       if (!isMessageSentFromSelectedUser) return;
-      
-      // Check if message is encrypted
+        // Check if message is encrypted
       if (newMessage.isEncrypted) {
         try {
-          // Get the sender's public key
-          const senderPublicKey = await getUserPublicKey(newMessage.senderId);
+          const authUser = useAuthStore.getState().authUser;
+          const privateKey = useAuthStore.getState().getUserPrivateKey();
           
-          // Get recipient's (current user's) private key from localStorage
-          const recipientPrivateKey = useAuthStore.getState().getUserPrivateKey();
+          // Determine if current user is sender or receiver
+          const isCurrentUserSender = newMessage.senderId === authUser._id;
           
-          if (senderPublicKey && recipientPrivateKey && newMessage.nonce) {
+          // Get the appropriate public key
+          let publicKey;
+          if (isCurrentUserSender) {
+            // If we're the sender, we need the recipient's public key
+            publicKey = await getUserPublicKey(newMessage.receiverId);
+          } else {
+            // If we're the recipient, we need the sender's public key
+            publicKey = await getUserPublicKey(newMessage.senderId);
+          }
+          
+          if (publicKey && privateKey && newMessage.nonce) {
             // Decrypt the message parts
             if (newMessage.encryptedText) {
               const decryptedText = decryptMessage(
                 newMessage.encryptedText,
                 newMessage.nonce,
-                senderPublicKey,
-                recipientPrivateKey
+                publicKey,
+                privateKey
               );
               
               if (decryptedText) {
                 newMessage.text = decryptedText;
+              } else {
+                newMessage.text = "[Encrypted message - unable to decrypt]";
               }
             }
             
@@ -193,12 +226,14 @@ export const useChatStore = create((set, get) => ({
               const decryptedImage = decryptMessage(
                 newMessage.encryptedImage,
                 newMessage.nonce,
-                senderPublicKey,
-                recipientPrivateKey
+                publicKey,
+                privateKey
               );
               
               if (decryptedImage) {
                 newMessage.image = decryptedImage;
+              } else if (newMessage.encryptedImage) {
+                newMessage.image = "[Encrypted image - unable to decrypt]";
               }
             }
           }
