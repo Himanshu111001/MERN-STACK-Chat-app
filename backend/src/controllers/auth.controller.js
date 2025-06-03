@@ -2,6 +2,7 @@ import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import cloudinary from "../lib/cloudinary.js";
+import { generateKeyPair } from "../lib/encryption.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -16,15 +17,17 @@ export const signup = async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (user) return res.status(400).json({ message: "Email already exists" });
-
-    const salt = await bcrypt.genSalt(10);
+    if (user) return res.status(400).json({ message: "Email already exists" });    const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    
+    // Generate a key pair for end-to-end encryption
+    const { publicKey, privateKey } = generateKeyPair();
 
     const newUser = new User({
       fullName,
       email,
       password: hashedPassword,
+      publicKey, // Store public key in database
     });
 
     if (newUser) {
@@ -32,11 +35,14 @@ export const signup = async (req, res) => {
       generateToken(newUser._id, res);
       await newUser.save();
 
+      // Return privateKey to client side without storing it on the server
       res.status(201).json({
         _id: newUser._id,
         fullName: newUser.fullName,
         email: newUser.email,
         profilePic: newUser.profilePic,
+        publicKey: newUser.publicKey,
+        privateKey: privateKey, // Send private key to client
       });
     } else {
       res.status(400).json({ message: "Invalid user data" });
@@ -61,13 +67,12 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    generateToken(user._id, res);
-
-    res.status(200).json({
+    generateToken(user._id, res);    res.status(200).json({
       _id: user._id,
       fullName: user.fullName,
       email: user.email,
       profilePic: user.profilePic,
+      publicKey: user.publicKey,
     });
   } catch (error) {
     console.log("Error in login controller", error.message);

@@ -18,6 +18,19 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    encryptedText: {
+      type: String,
+    },
+    encryptedImage: {
+      type: String,
+    },
+    nonce: {
+      type: String,
+    },
+    isEncrypted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

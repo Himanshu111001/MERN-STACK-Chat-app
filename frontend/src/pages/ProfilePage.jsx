@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { Camera, Mail, User } from "lucide-react";
+import E2EEKeyManagement from "../components/E2EEKeyManagement";
 
 const ProfilePage = () => {
   const { authUser, isUpdatingProfile, updateProfile } = useAuthStore();
@@ -89,9 +90,7 @@ const ProfilePage = () => {
                 {authUser?.email}
               </p>
             </div>
-          </div>
-
-          <div className="mt-6 bg-base-300 rounded-xl p-6">
+          </div>          <div className="mt-6 bg-base-300 rounded-xl p-6">
             <h2 className="text-lg font-medium  mb-4">Account Information</h2>
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between py-2 border-b border-zinc-700">
@@ -104,6 +103,9 @@ const ProfilePage = () => {
               </div>
             </div>
           </div>
+          
+          {/* End-to-End Encryption Key Management */}
+          <E2EEKeyManagement />
         </div>
       </div>
     </div>

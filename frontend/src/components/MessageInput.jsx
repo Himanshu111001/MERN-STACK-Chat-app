@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { Image, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -46,7 +47,10 @@ const MessageInput = () => {
       console.error("Failed to send message:", error);
     }
   };
-
+  // Check if user has private key for E2EE
+  const { getUserPrivateKey } = useAuthStore();
+  const hasPrivateKey = !!getUserPrivateKey();
+    
   return (
     <div className="p-4 w-full">
       {imagePreview && (
@@ -66,6 +70,15 @@ const MessageInput = () => {
               <X className="size-3" />
             </button>
           </div>
+        </div>
+      )}
+      
+      {hasPrivateKey && (
+        <div className="flex items-center justify-center mb-2">
+          <span className="text-xs text-green-500 flex items-center">
+            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+            End-to-end encryption enabled
+          </span>
         </div>
       )}
 

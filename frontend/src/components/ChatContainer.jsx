@@ -1,5 +1,5 @@
 import { useChatStore } from "../store/useChatStore";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
@@ -70,8 +70,7 @@ const ChatContainer = () => {
               <time className="text-xs opacity-50 ml-1">
                 {formatMessageTime(message.createdAt)}
               </time>
-            </div>
-            <div className="chat-bubble flex flex-col">
+            </div>            <div className="chat-bubble flex flex-col">
               {message.image && (
                 <img
                   src={message.image}
@@ -80,6 +79,12 @@ const ChatContainer = () => {
                 />
               )}
               {message.text && <p>{message.text}</p>}
+              {message.isEncrypted && !message.text && !message.image && (
+                <p className="text-xs opacity-70">[Encrypted message - unable to decrypt]</p>
+              )}
+              {message.isEncrypted && (message.text || message.image) && (
+                <span className="text-xs opacity-50 self-end">🔒</span>
+              )}
             </div>
           </div>
         ))}
